@@ -1,0 +1,21 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "simpleornothing-files",
+  "main": "src/index.js",
+  "compatibility_date": "2025-01-01",
+
+  // simpleornothing.com 의 /files 경로만 이 Worker 로 라우팅 (나머지 사이트는 그대로)
+  "routes": [
+    { "pattern": "simpleornothing.com/files", "zone_name": "simpleornothing.com" },
+    { "pattern": "simpleornothing.com/files/*", "zone_name": "simpleornothing.com" }
+  ],
+
+  // R2 버킷 바인딩 (배포 전 'files' 버킷을 만들거나 bucket_name 을 실제 이름으로 변경)
+  "r2_buckets": [
+    { "binding": "FILES_BUCKET", "bucket_name": "files" }
+  ],
+
+  // app.html 은 Wrangler 기본 Text 규칙(.txt/.html/.sql)에 의해 문자열로 import 됩니다.
+
+  "observability": { "enabled": true }
+}

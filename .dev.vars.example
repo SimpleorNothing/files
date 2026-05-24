@@ -1,0 +1,10 @@
+# 로컬 개발용 환경변수 예시.
+# 이 파일을 복사해서 .dev.vars 로 만든 뒤 값을 채우세요 (.dev.vars 는 git 에 올리지 않음).
+# 운영 환경에서는 'wrangler secret put' 으로 등록합니다.
+
+# 페이지 접속 비밀번호
+APP_PASSWORD=change-me
+
+# 세션 쿠키 서명용 비밀키 (길고 무작위인 문자열 권장)
+# 예: openssl rand -base64 32
+SESSION_SECRET=replace-with-a-long-random-secret

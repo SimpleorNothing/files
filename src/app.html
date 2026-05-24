@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>파일 보관함</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #181b22;
+    --panel-2: #20242d;
+    --border: #2a2f3a;
+    --text: #e6e8ec;
+    --muted: #9aa1ac;
+    --accent: #4f86f7;
+    --accent-hover: #3d74e6;
+    --danger: #e5534b;
+    --ok: #2ea043;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: radial-gradient(1200px 600px at 50% -10%, #1b2030 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 16px 80px; }
+
+  /* ---------- 로그인 ---------- */
+  .login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .login-card {
+    width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+  }
+  .login-card h1 { margin: 0 0 4px; font-size: 22px; }
+  .login-card p { margin: 0 0 22px; color: var(--muted); font-size: 14px; }
+  .field { position: relative; }
+  input[type="password"], input[type="text"] {
+    width: 100%; padding: 13px 14px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); font-size: 15px; outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 0; border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 600;
+    cursor: pointer; color: #fff; background: var(--accent); transition: background .15s;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-block { width: 100%; margin-top: 16px; }
+  .btn-ghost { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-ghost:hover { background: var(--panel-2); }
+  .btn-sm { padding: 7px 11px; font-size: 13px; }
+  .btn-danger { background: transparent; border: 1px solid var(--border); color: var(--danger); }
+  .btn-danger:hover { background: rgba(229,83,75,.12); }
+  .error { color: var(--danger); font-size: 13px; margin-top: 12px; min-height: 16px; }
+
+  /* ---------- 앱 ---------- */
+  .app { display: none; }
+  header.top {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px;
+  }
+  header.top h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); }
+
+  .dropzone {
+    border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 30px 20px;
+    text-align: center; color: var(--muted); cursor: pointer; transition: all .15s; background: rgba(255,255,255,.012);
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); color: var(--text); background: rgba(79,134,247,.08); }
+  .dropzone strong { color: var(--text); }
+  .dropzone .hint { font-size: 12.5px; margin-top: 6px; }
+
+  .uploads { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; }
+  .uprow { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .uprow .name { display: flex; justify-content: space-between; gap: 10px; }
+  .uprow .name .pct { color: var(--muted); }
+  .bar { height: 6px; background: var(--panel-2); border-radius: 99px; margin-top: 8px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .12s; }
+  .uprow.err { border-color: var(--danger); }
+  .uprow.err .pct { color: var(--danger); }
+
+  .list { margin-top: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .list-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .list-head .count { color: var(--muted); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: none; }
+  tr:last-child td { border-bottom: 0; }
+  td.size, th.size { white-space: nowrap; color: var(--muted); }
+  td.date, th.date { white-space: nowrap; color: var(--muted); }
+  td.actions { text-align: right; white-space: nowrap; }
+  td.actions a, td.actions button { margin-left: 6px; vertical-align: middle; }
+  .fname { word-break: break-all; }
+  a.dl { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
+  a.dl:hover { text-decoration: underline; }
+  .empty, .loading { padding: 36px 16px; text-align: center; color: var(--muted); font-size: 14px; }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid var(--border); border-top-color: var(--accent); border-radius:50%; animation: sp .7s linear infinite; vertical-align:-3px; margin-right:8px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+
+  @media (max-width: 560px) {
+    th.date, td.date { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="login" class="login-screen">
+  <form id="loginForm" class="login-card">
+    <h1>파일 보관함</h1>
+    <p>접속하려면 비밀번호를 입력하세요.</p>
+    <div class="field">
+      <input id="pw" type="password" placeholder="비밀번호" autocomplete="current-password" autofocus />
+    </div>
+    <button id="loginBtn" class="btn btn-block" type="submit">입장</button>
+    <div id="loginErr" class="error"></div>
+  </form>
+</div>
+
+<!-- 앱 화면 -->
+<div id="app" class="app">
+  <div class="wrap">
+    <header class="top">
+      <h1><span class="dot"></span> 파일 보관함</h1>
+      <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">로그아웃</button>
+    </header>
+
+    <div id="dropzone" class="dropzone">
+      <strong>파일을 끌어다 놓거나 클릭</strong>해서 업로드
+      <div class="hint">여러 파일 동시 업로드 가능</div>
+      <input id="fileInput" type="file" multiple hidden />
+    </div>
+
+    <div id="uploads" class="uploads"></div>
+
+    <div class="list">
+      <div class="list-head">
+        <span>파일 목록</span>
+        <span id="count" class="count"></span>
+      </div>
+      <div id="listBody">
+        <div class="loading"><span class="spin"></span>불러오는 중…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/files/api";
+
+const $ = (id) => document.getElementById(id);
+const loginView = $("login");
+const appView = $("app");
+
+async function api(path, opts = {}) {
+  return fetch(API + path, { credentials: "same-origin", ...opts });
+}
+
+/* ---------- 인증 ---------- */
+async function checkSession() {
+  try {
+    const r = await api("/session");
+    const d = await r.json();
+    if (d.authenticated) showApp();
+    else showLogin();
+  } catch {
+    showLogin();
+  }
+}
+
+function showLogin() {
+  appView.style.display = "none";
+  loginView.style.display = "flex";
+  $("pw").focus();
+}
+
+function showApp() {
+  loginView.style.display = "none";
+  appView.style.display = "block";
+  loadFiles();
+}
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = $("loginBtn");
+  const err = $("loginErr");
+  err.textContent = "";
+  btn.disabled = true;
+  try {
+    const r = await api("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: $("pw").value }),
+    });
+    const d = await r.json();
+    if (r.ok && d.ok) {
+      $("pw").value = "";
+      showApp();
+    } else {
+      err.textContent = d.error || "로그인에 실패했습니다.";
+    }
+  } catch {
+    err.textContent = "네트워크 오류가 발생했습니다.";
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("logoutBtn").addEventListener("click", async () => {
+  await api("/logout", { method: "POST" });
+  showLogin();
+});
+
+/* ---------- 목록 ---------- */
+async function loadFiles() {
+  const body = $("listBody");
+  body.innerHTML = '<div class="loading"><span class="spin"></span>불러오는 중…</div>';
+  try {
+    const r = await api("/list");
+    if (r.status === 401) return showLogin();
+    const d = await r.json();
+    if (!d.ok) {
+      body.innerHTML = '<div class="empty">' + esc(d.error || "목록을 불러오지 못했습니다.") + "</div>";
+      $("count").textContent = "";
+      return;
+    }
+    renderList(d.files);
+  } catch {
+    body.innerHTML = '<div class="empty">목록을 불러오지 못했습니다.</div>';
+  }
+}
+
+function renderList(files) {
+  $("count").textContent = files.length ? files.length + "개" : "";
+  const body = $("listBody");
+  if (!files.length) {
+    body.innerHTML = '<div class="empty">아직 업로드된 파일이 없습니다.</div>';
+    return;
+  }
+  const table = document.createElement("table");
+  table.innerHTML =
+    "<thead><tr><th>이름</th><th class='size'>크기</th><th class='date'>업로드</th><th></th></tr></thead>";
+  const tbody = document.createElement("tbody");
+  for (const f of files) {
+    const tr = document.createElement("tr");
+
+    const tdName = document.createElement("td");
+    tdName.className = "fname";
+    tdName.textContent = f.key;
+    tr.appendChild(tdName);
+
+    const tdSize = document.createElement("td");
+    tdSize.className = "size";
+    tdSize.textContent = fmtSize(f.size);
+    tr.appendChild(tdSize);
+
+    const tdDate = document.createElement("td");
+    tdDate.className = "date";
+    tdDate.textContent = fmtDate(f.uploaded);
+    tr.appendChild(tdDate);
+
+    const tdAct = document.createElement("td");
+    tdAct.className = "actions";
+    const dl = document.createElement("a");
+    dl.className = "dl";
+    dl.textContent = "다운로드";
+    dl.href = API + "/file/" + encodeURIComponent(f.key);
+    dl.setAttribute("download", f.key.split("/").pop());
+    tdAct.appendChild(dl);
+
+    const del = document.createElement("button");
+    del.className = "btn btn-danger btn-sm";
+    del.textContent = "삭제";
+    del.addEventListener("click", () => removeFile(f.key));
+    tdAct.appendChild(del);
+
+    tr.appendChild(tdAct);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  body.innerHTML = "";
+  body.appendChild(table);
+}
+
+async function removeFile(key) {
+  if (!confirm('"' + key + '" 파일을 삭제할까요?')) return;
+  const r = await api("/file/" + encodeURIComponent(key), { method: "DELETE" });
+  if (r.status === 401) return showLogin();
+  loadFiles();
+}
+
+/* ---------- 업로드 ---------- */
+const dz = $("dropzone");
+const fileInput = $("fileInput");
+
+dz.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => {
+  uploadFiles([...fileInput.files]);
+  fileInput.value = "";
+});
+["dragenter", "dragover"].forEach((ev) =>
+  dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add("drag"); })
+);
+["dragleave", "drop"].forEach((ev) =>
+  dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove("drag"); })
+);
+dz.addEventListener("drop", (e) => {
+  if (e.dataTransfer && e.dataTransfer.files.length) uploadFiles([...e.dataTransfer.files]);
+});
+
+function uploadFiles(files) {
+  files.forEach(uploadOne);
+}
+
+function uploadOne(file) {
+  const row = document.createElement("div");
+  row.className = "uprow";
+  const head = document.createElement("div");
+  head.className = "name";
+  const nm = document.createElement("span");
+  nm.textContent = file.name;
+  const pct = document.createElement("span");
+  pct.className = "pct";
+  pct.textContent = "0%";
+  head.appendChild(nm);
+  head.appendChild(pct);
+  const bar = document.createElement("div");
+  bar.className = "bar";
+  const fill = document.createElement("i");
+  bar.appendChild(fill);
+  row.appendChild(head);
+  row.appendChild(bar);
+  $("uploads").prepend(row);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("PUT", API + "/file/" + encodeURIComponent(file.name));
+  xhr.withCredentials = true;
+  if (file.type) xhr.setRequestHeader("Content-Type", file.type);
+
+  xhr.upload.onprogress = (e) => {
+    if (e.lengthComputable) {
+      const p = Math.round((e.loaded / e.total) * 100);
+      fill.style.width = p + "%";
+      pct.textContent = p + "%";
+    }
+  };
+  xhr.onload = () => {
+    if (xhr.status === 401) { showLogin(); return; }
+    if (xhr.status >= 200 && xhr.status < 300) {
+      pct.textContent = "완료";
+      fill.style.width = "100%";
+      setTimeout(() => row.remove(), 1200);
+      loadFiles();
+    } else {
+      row.classList.add("err");
+      pct.textContent = "실패 (" + xhr.status + ")";
+    }
+  };
+  xhr.onerror = () => {
+    row.classList.add("err");
+    pct.textContent = "네트워크 오류";
+  };
+  xhr.send(file);
+}
+
+/* ---------- 유틸 ---------- */
+function fmtSize(n) {
+  if (n === 0) return "0 B";
+  const u = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(n) / Math.log(1024));
+  return (n / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i];
+}
+function fmtDate(s) {
+  const d = new Date(s);
+  if (isNaN(d)) return "";
+  const p = (x) => String(x).padStart(2, "0");
+  return d.getFullYear() + "." + p(d.getMonth() + 1) + "." + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+function esc(s) {
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+checkSession();
+</script>
+</body>
+</html>

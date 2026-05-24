@@ -1,0 +1,13 @@
+{
+  "name": "simpleornothing-files",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Password-protected file storage page backed by Cloudflare R2",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
