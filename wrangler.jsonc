@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "simpleornothing-files",
+  "name": "files",
   "main": "src/index.js",
   "compatibility_date": "2025-01-01",
 
