@@ -7,23 +7,23 @@
 <title>파일 보관함</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --panel: #181b22;
-    --panel-2: #20242d;
-    --border: #2a2f3a;
-    --text: #e6e8ec;
-    --muted: #9aa1ac;
-    --accent: #4f86f7;
-    --accent-hover: #3d74e6;
-    --danger: #e5534b;
-    --ok: #2ea043;
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --panel-2: #f1f3f5;
+    --border: #e3e6ea;
+    --text: #1b1f24;
+    --muted: #6b727c;
+    --accent: #2f6fed;
+    --accent-hover: #2560d8;
+    --danger: #d23b32;
+    --ok: #1f9d3b;
     --radius: 12px;
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0;
-    background: radial-gradient(1200px 600px at 50% -10%, #1b2030 0%, var(--bg) 60%);
+    background: radial-gradient(1200px 600px at 50% -10%, #f6f8fc 0%, var(--bg) 60%);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -36,7 +36,7 @@
   }
   .login-card {
     width: 100%; max-width: 380px; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 16px; padding: 32px 28px; box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    border-radius: 16px; padding: 32px 28px; box-shadow: 0 10px 40px rgba(0,0,0,.08);
   }
   .login-card h1 { margin: 0 0 4px; font-size: 22px; }
   .login-card p { margin: 0 0 22px; color: var(--muted); font-size: 14px; }
@@ -71,7 +71,7 @@
 
   .dropzone {
     border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 30px 20px;
-    text-align: center; color: var(--muted); cursor: pointer; transition: all .15s; background: rgba(255,255,255,.012);
+    text-align: center; color: var(--muted); cursor: pointer; transition: all .15s; background: #fbfcfd;
   }
   .dropzone:hover, .dropzone.drag { border-color: var(--accent); color: var(--text); background: rgba(79,134,247,.08); }
   .dropzone strong { color: var(--text); }
