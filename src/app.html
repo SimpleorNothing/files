@@ -87,8 +87,14 @@
   .uprow.err .pct { color: var(--danger); }
 
   .list { margin-top: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .list-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+  .list-head-left { display: flex; align-items: center; gap: 8px; }
   .list-head .count { color: var(--muted); font-size: 13px; }
+  .search { flex: 0 1 240px; min-width: 150px; padding: 8px 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 14px; outline: none; }
+  .search:focus { border-color: var(--accent); background: #fff; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); }
+  th .arrow { margin-left: 4px; color: var(--accent); font-size: 10px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: none; }
@@ -142,8 +148,11 @@
 
     <div class="list">
       <div class="list-head">
-        <span>파일 목록</span>
-        <span id="count" class="count"></span>
+        <div class="list-head-left">
+          <span>파일 목록</span>
+          <span id="count" class="count"></span>
+        </div>
+        <input id="search" type="search" class="search" placeholder="파일 이름 검색…" autocomplete="off" />
       </div>
       <div id="listBody">
         <div class="loading"><span class="spin"></span>불러오는 중…</div>
@@ -219,6 +228,9 @@ $("logoutBtn").addEventListener("click", async () => {
 });
 
 /* ---------- 목록 ---------- */
+let allFiles = [];
+const sortState = { key: "uploaded", dir: "desc" };
+
 async function loadFiles() {
   const body = $("listBody");
   body.innerHTML = '<div class="loading"><span class="spin"></span>불러오는 중…</div>';
@@ -231,63 +243,128 @@ async function loadFiles() {
       $("count").textContent = "";
       return;
     }
-    renderList(d.files);
+    allFiles = d.files;
+    render();
   } catch {
     body.innerHTML = '<div class="empty">목록을 불러오지 못했습니다.</div>';
   }
 }
 
-function renderList(files) {
-  $("count").textContent = files.length ? files.length + "개" : "";
+function render() {
+  const q = ($("search").value || "").trim().toLowerCase();
+  let files = q ? allFiles.filter((f) => f.key.toLowerCase().includes(q)) : allFiles.slice();
+  files = sortFiles(files);
+
+  const total = allFiles.length;
+  $("count").textContent = !total ? "" : q ? files.length + " / " + total + "개" : total + "개";
+
   const body = $("listBody");
-  if (!files.length) {
+  if (!total) {
     body.innerHTML = '<div class="empty">아직 업로드된 파일이 없습니다.</div>';
     return;
   }
-  const table = document.createElement("table");
-  table.innerHTML =
-    "<thead><tr><th>이름</th><th class='size'>크기</th><th class='date'>업로드</th><th></th></tr></thead>";
-  const tbody = document.createElement("tbody");
-  for (const f of files) {
-    const tr = document.createElement("tr");
-
-    const tdName = document.createElement("td");
-    tdName.className = "fname";
-    tdName.textContent = f.key;
-    tr.appendChild(tdName);
-
-    const tdSize = document.createElement("td");
-    tdSize.className = "size";
-    tdSize.textContent = fmtSize(f.size);
-    tr.appendChild(tdSize);
-
-    const tdDate = document.createElement("td");
-    tdDate.className = "date";
-    tdDate.textContent = fmtDate(f.uploaded);
-    tr.appendChild(tdDate);
-
-    const tdAct = document.createElement("td");
-    tdAct.className = "actions";
-    const dl = document.createElement("a");
-    dl.className = "dl";
-    dl.textContent = "다운로드";
-    dl.href = API + "/file/" + encodeURIComponent(f.key);
-    dl.setAttribute("download", f.key.split("/").pop());
-    tdAct.appendChild(dl);
-
-    const del = document.createElement("button");
-    del.className = "btn btn-danger btn-sm";
-    del.textContent = "삭제";
-    del.addEventListener("click", () => removeFile(f.key));
-    tdAct.appendChild(del);
-
-    tr.appendChild(tdAct);
-    tbody.appendChild(tr);
+  if (!files.length) {
+    body.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+    return;
   }
+
+  const table = document.createElement("table");
+  table.appendChild(buildHead());
+  const tbody = document.createElement("tbody");
+  for (const f of files) tbody.appendChild(buildRow(f));
   table.appendChild(tbody);
   body.innerHTML = "";
   body.appendChild(table);
 }
+
+function sortFiles(files) {
+  const { key, dir } = sortState;
+  const mul = dir === "asc" ? 1 : -1;
+  const byName = (a, b) => a.key.localeCompare(b.key, "ko", { numeric: true, sensitivity: "base" });
+  return files.sort((a, b) => {
+    let r;
+    if (key === "size") r = a.size - b.size;
+    else if (key === "uploaded") r = new Date(a.uploaded) - new Date(b.uploaded);
+    else r = byName(a, b);
+    if (r === 0) r = byName(a, b);
+    return r * mul;
+  });
+}
+
+function buildHead() {
+  const cols = [
+    { key: "key", label: "이름", cls: "" },
+    { key: "size", label: "크기", cls: "size" },
+    { key: "uploaded", label: "업로드", cls: "date" },
+  ];
+  const thead = document.createElement("thead");
+  const tr = document.createElement("tr");
+  for (const c of cols) {
+    const th = document.createElement("th");
+    th.className = (c.cls ? c.cls + " " : "") + "sortable";
+    th.textContent = c.label;
+    if (sortState.key === c.key) {
+      const arrow = document.createElement("span");
+      arrow.className = "arrow";
+      arrow.textContent = sortState.dir === "asc" ? "▲" : "▼";
+      th.appendChild(arrow);
+    }
+    th.addEventListener("click", () => toggleSort(c.key));
+    tr.appendChild(th);
+  }
+  tr.appendChild(document.createElement("th"));
+  thead.appendChild(tr);
+  return thead;
+}
+
+function toggleSort(key) {
+  if (sortState.key === key) {
+    sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
+  } else {
+    sortState.key = key;
+    sortState.dir = key === "key" ? "asc" : "desc"; // 이름은 오름차순, 크기/날짜는 내림차순 기본
+  }
+  render();
+}
+
+function buildRow(f) {
+  const tr = document.createElement("tr");
+
+  const tdName = document.createElement("td");
+  tdName.className = "fname";
+  tdName.textContent = f.key;
+  tr.appendChild(tdName);
+
+  const tdSize = document.createElement("td");
+  tdSize.className = "size";
+  tdSize.textContent = fmtSize(f.size);
+  tr.appendChild(tdSize);
+
+  const tdDate = document.createElement("td");
+  tdDate.className = "date";
+  tdDate.textContent = fmtDate(f.uploaded);
+  tr.appendChild(tdDate);
+
+  const tdAct = document.createElement("td");
+  tdAct.className = "actions";
+  const dl = document.createElement("a");
+  dl.className = "dl";
+  dl.textContent = "다운로드";
+  dl.href = API + "/file/" + encodeURIComponent(f.key);
+  dl.setAttribute("download", f.key.split("/").pop());
+  tdAct.appendChild(dl);
+
+  const del = document.createElement("button");
+  del.className = "btn btn-danger btn-sm";
+  del.textContent = "삭제";
+  del.addEventListener("click", () => removeFile(f.key));
+  tdAct.appendChild(del);
+
+  tr.appendChild(tdAct);
+  return tr;
+}
+
+$("search").addEventListener("input", render);
 
 async function removeFile(key) {
   if (!confirm('"' + key + '" 파일을 삭제할까요?')) return;
