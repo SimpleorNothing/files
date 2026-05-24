@@ -69,6 +69,16 @@
   header.top h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
   .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 10px var(--ok); }
 
+  .tabs { display: inline-flex; gap: 4px; margin-bottom: 16px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
+  .tab { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 600; padding: 7px 16px; border-radius: 7px; cursor: pointer; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .tab .tcount { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .tab.active .tcount { color: var(--accent); }
+  .cat-select { background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; color: var(--text); font: inherit; font-size: 13px; padding: 5px 8px; cursor: pointer; }
+  .cat-select:focus { outline: none; border-color: var(--accent); }
+  td.cat, th.cat-h { white-space: nowrap; }
+
   .dropzone {
     border: 1.5px dashed var(--border); border-radius: var(--radius); padding: 30px 20px;
     text-align: center; color: var(--muted); cursor: pointer; transition: all .15s; background: #fbfcfd;
@@ -138,9 +148,15 @@
       <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">로그아웃</button>
     </header>
 
+    <div class="tabs">
+      <button class="tab active" type="button" data-cat="all">전체 <span id="tc-all" class="tcount"></span></button>
+      <button class="tab" type="button" data-cat="company">회사 <span id="tc-company" class="tcount"></span></button>
+      <button class="tab" type="button" data-cat="personal">개인 <span id="tc-personal" class="tcount"></span></button>
+    </div>
+
     <div id="dropzone" class="dropzone">
       <strong>파일을 끌어다 놓거나 클릭</strong>해서 업로드
-      <div class="hint">여러 파일 동시 업로드 가능</div>
+      <div class="hint" id="dzHint">‘미분류’로 업로드됩니다 · 회사/개인 탭에서 올리면 자동 분류</div>
       <input id="fileInput" type="file" multiple hidden />
     </div>
 
@@ -229,7 +245,24 @@ $("logoutBtn").addEventListener("click", async () => {
 
 /* ---------- 목록 ---------- */
 let allFiles = [];
+let activeCat = "all";
 const sortState = { key: "uploaded", dir: "desc" };
+const CAT = {
+  company: { prefix: "company/", label: "회사" },
+  personal: { prefix: "personal/", label: "개인" },
+};
+function catOf(key) {
+  if (key.startsWith(CAT.company.prefix)) return "company";
+  if (key.startsWith(CAT.personal.prefix)) return "personal";
+  return "none";
+}
+function displayName(key) {
+  const c = catOf(key);
+  return c === "none" ? key : key.slice(CAT[c].prefix.length);
+}
+function targetKey(name) {
+  return activeCat === "all" ? name : CAT[activeCat].prefix + name;
+}
 
 async function loadFiles() {
   const body = $("listBody");
@@ -251,16 +284,21 @@ async function loadFiles() {
 }
 
 function render() {
+  updateTabCounts();
+  const inCat = activeCat === "all" ? allFiles : allFiles.filter((f) => catOf(f.key) === activeCat);
   const q = ($("search").value || "").trim().toLowerCase();
-  let files = q ? allFiles.filter((f) => f.key.toLowerCase().includes(q)) : allFiles.slice();
+  let files = q ? inCat.filter((f) => displayName(f.key).toLowerCase().includes(q)) : inCat.slice();
   files = sortFiles(files);
 
-  const total = allFiles.length;
-  $("count").textContent = !total ? "" : q ? files.length + " / " + total + "개" : total + "개";
+  $("count").textContent = !inCat.length ? "" : q ? files.length + " / " + inCat.length + "개" : inCat.length + "개";
 
   const body = $("listBody");
-  if (!total) {
+  if (!allFiles.length) {
     body.innerHTML = '<div class="empty">아직 업로드된 파일이 없습니다.</div>';
+    return;
+  }
+  if (!inCat.length) {
+    body.innerHTML = '<div class="empty">이 분류에 파일이 없습니다.</div>';
     return;
   }
   if (!files.length) {
@@ -277,10 +315,22 @@ function render() {
   body.appendChild(table);
 }
 
+function updateTabCounts() {
+  let c = 0, p = 0;
+  for (const f of allFiles) {
+    const k = catOf(f.key);
+    if (k === "company") c++;
+    else if (k === "personal") p++;
+  }
+  $("tc-all").textContent = allFiles.length ? "(" + allFiles.length + ")" : "";
+  $("tc-company").textContent = c ? "(" + c + ")" : "";
+  $("tc-personal").textContent = p ? "(" + p + ")" : "";
+}
+
 function sortFiles(files) {
   const { key, dir } = sortState;
   const mul = dir === "asc" ? 1 : -1;
-  const byName = (a, b) => a.key.localeCompare(b.key, "ko", { numeric: true, sensitivity: "base" });
+  const byName = (a, b) => displayName(a.key).localeCompare(displayName(b.key), "ko", { numeric: true, sensitivity: "base" });
   return files.sort((a, b) => {
     let r;
     if (key === "size") r = a.size - b.size;
@@ -312,6 +362,10 @@ function buildHead() {
     th.addEventListener("click", () => toggleSort(c.key));
     tr.appendChild(th);
   }
+  const thCat = document.createElement("th");
+  thCat.className = "cat-h";
+  thCat.textContent = "분류";
+  tr.appendChild(thCat);
   tr.appendChild(document.createElement("th"));
   thead.appendChild(tr);
   return thead;
@@ -332,7 +386,7 @@ function buildRow(f) {
 
   const tdName = document.createElement("td");
   tdName.className = "fname";
-  tdName.textContent = f.key;
+  tdName.textContent = displayName(f.key);
   tr.appendChild(tdName);
 
   const tdSize = document.createElement("td");
@@ -345,13 +399,28 @@ function buildRow(f) {
   tdDate.textContent = fmtDate(f.uploaded);
   tr.appendChild(tdDate);
 
+  const tdCat = document.createElement("td");
+  tdCat.className = "cat";
+  const sel = document.createElement("select");
+  sel.className = "cat-select";
+  [["company", "회사"], ["personal", "개인"], ["none", "미분류"]].forEach(([v, l]) => {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = l;
+    sel.appendChild(o);
+  });
+  sel.value = catOf(f.key);
+  sel.addEventListener("change", () => moveFile(f.key, sel.value, sel));
+  tdCat.appendChild(sel);
+  tr.appendChild(tdCat);
+
   const tdAct = document.createElement("td");
   tdAct.className = "actions";
   const dl = document.createElement("a");
   dl.className = "dl";
   dl.textContent = "다운로드";
   dl.href = API + "/file/" + encodeURIComponent(f.key);
-  dl.setAttribute("download", f.key.split("/").pop());
+  dl.setAttribute("download", displayName(f.key));
   tdAct.appendChild(dl);
 
   const del = document.createElement("button");
@@ -366,11 +435,53 @@ function buildRow(f) {
 
 $("search").addEventListener("input", render);
 
+document.querySelectorAll(".tab").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    activeCat = btn.dataset.cat;
+    document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
+    updateDropzoneHint();
+    render();
+  });
+});
+
+function updateDropzoneHint() {
+  const h = $("dzHint");
+  if (activeCat === "company") h.textContent = "‘회사’에 업로드됩니다 · 여러 파일 가능";
+  else if (activeCat === "personal") h.textContent = "‘개인’에 업로드됩니다 · 여러 파일 가능";
+  else h.textContent = "‘미분류’로 업로드됩니다 · 회사/개인 탭에서 올리면 자동 분류";
+}
+
 async function removeFile(key) {
-  if (!confirm('"' + key + '" 파일을 삭제할까요?')) return;
+  if (!confirm('"' + displayName(key) + '" 파일을 삭제할까요?')) return;
   const r = await api("/file/" + encodeURIComponent(key), { method: "DELETE" });
   if (r.status === 401) return showLogin();
   loadFiles();
+}
+
+async function moveFile(oldKey, newCat, selEl) {
+  const to = (newCat === "none" ? "" : CAT[newCat].prefix) + displayName(oldKey);
+  if (to === oldKey) return;
+  selEl.disabled = true;
+  try {
+    const r = await api("/move", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: oldKey, to: to }),
+    });
+    if (r.status === 401) return showLogin();
+    const d = await r.json();
+    if (!d.ok) {
+      alert(d.error || "이동에 실패했습니다.");
+      selEl.value = catOf(oldKey);
+      return;
+    }
+    await loadFiles();
+  } catch {
+    alert("이동 중 오류가 발생했습니다.");
+    selEl.value = catOf(oldKey);
+  } finally {
+    selEl.disabled = false;
+  }
 }
 
 /* ---------- 업로드 ---------- */
@@ -417,7 +528,7 @@ function uploadOne(file) {
   $("uploads").prepend(row);
 
   const xhr = new XMLHttpRequest();
-  xhr.open("PUT", API + "/file/" + encodeURIComponent(file.name));
+  xhr.open("PUT", API + "/file/" + encodeURIComponent(targetKey(file.name)));
   xhr.withCredentials = true;
   if (file.type) xhr.setRequestHeader("Content-Type", file.type);
 

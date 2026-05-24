@@ -91,6 +91,20 @@ async function handleApi(request, env, sub) {
     return json({ ok: true, files: out });
   }
 
+  if (sub === "move" && method === "POST") {
+    if (!env.FILES_BUCKET) return json({ ok: false, error: "R2 버킷이 연결되지 않았습니다." }, 500);
+    const body = await request.json().catch(() => ({}));
+    const from = validateKey(body && body.from);
+    const to = validateKey(body && body.to);
+    if (!from || !to) return json({ ok: false, error: "잘못된 경로입니다." }, 400);
+    if (from === to) return json({ ok: true });
+    const obj = await env.FILES_BUCKET.get(from);
+    if (!obj) return json({ ok: false, error: "원본 파일을 찾을 수 없습니다." }, 404);
+    await env.FILES_BUCKET.put(to, obj.body, { httpMetadata: obj.httpMetadata });
+    await env.FILES_BUCKET.delete(from);
+    return json({ ok: true });
+  }
+
   if (sub.startsWith("file/")) {
     if (!env.FILES_BUCKET) return json({ ok: false, error: "R2 버킷이 연결되지 않았습니다." }, 500);
     const key = safeKey(sub.slice("file/".length));
@@ -132,6 +146,14 @@ async function handleApi(request, env, sub) {
 
 /* ----------------- 보안 / 세션 ----------------- */
 
+function validateKey(key) {
+  if (typeof key !== "string") return null;
+  key = key.replace(/^\/+/, "").trim();
+  if (!key || key.length > 1024) return null;
+  if (key.includes("..") || key.includes("\0")) return null;
+  return key;
+}
+
 function safeKey(raw) {
   let key;
   try {
@@ -139,10 +161,7 @@ function safeKey(raw) {
   } catch {
     return null;
   }
-  key = key.replace(/^\/+/, "").trim();
-  if (!key || key.length > 1024) return null;
-  if (key.includes("..") || key.includes("\0")) return null;
-  return key;
+  return validateKey(key);
 }
 
 async function createToken(env) {
