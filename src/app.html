@@ -121,6 +121,8 @@
   td.actions { text-align: right; white-space: nowrap; }
   td.actions a, td.actions button { margin-left: 6px; vertical-align: middle; }
   .fname { word-break: break-all; }
+  a.fname-link { color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
+  a.fname-link:hover { color: var(--accent); text-decoration: underline; }
   a.dl { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
   a.dl:hover { text-decoration: underline; }
   .empty, .loading { padding: 36px 16px; text-align: center; color: var(--muted); font-size: 14px; }
@@ -452,7 +454,13 @@ function buildRow(f) {
 
   const tdName = document.createElement("td");
   tdName.className = "fname";
-  tdName.textContent = displayName(f.key);
+  const open = document.createElement("a");
+  open.className = "fname-link";
+  open.textContent = displayName(f.key);
+  open.href = API + "/file/" + encodeURIComponent(f.key) + "?inline=1";
+  open.target = "_blank";
+  open.rel = "noopener";
+  tdName.appendChild(open);
   tr.appendChild(tdName);
 
   const tdSize = document.createElement("td");

@@ -124,9 +124,11 @@ async function handleApi(request, env, sub) {
       headers.set("Content-Length", String(obj.size));
       headers.set("etag", obj.httpEtag);
       const filename = key.split("/").pop();
+      // ?inline=1 이면 새 탭에서 미리보기, 아니면 다운로드
+      const inline = new URL(request.url).searchParams.has("inline");
       headers.set(
         "Content-Disposition",
-        `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+        `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(filename)}`
       );
       headers.set("Cache-Control", "private, no-store");
       headers.set("X-Content-Type-Options", "nosniff");
