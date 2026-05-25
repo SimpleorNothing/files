@@ -161,7 +161,7 @@
 
     <div id="dropzone" class="dropzone">
       <strong>파일을 끌어다 놓거나 클릭</strong>해서 업로드
-      <div class="hint" id="dzHint">‘미분류’로 업로드됩니다 · 회사/개인 탭에서 올리면 자동 분류</div>
+      <div class="hint" id="dzHint">파일명으로 회사/개인 자동 분류 · 애매하면 미분류(직접 선택)</div>
       <input id="fileInput" type="file" multiple hidden />
     </div>
 
@@ -272,8 +272,31 @@ function displayName(key) {
   const c = catOf(key);
   return c === "none" ? key : key.slice(CAT[c].prefix.length);
 }
+// 파일명 자동 분류 키워드 (소문자). 한쪽에만 해당하면 자동 분류, 둘 다/모두 아니면 미분류.
+const CLASSIFY = {
+  company: [
+    "경쟁사", "분석", "동향", "공장", "시장", "공급망", "부품", "검증", "활용", "공조",
+    "가전", "보고서", "실적", "매출", "전략", "회의", "업무", "프로젝트", "계약", "거래처",
+    "사업", "제품", "영업", "기획", "보고", "라인", "lg", "삼성", "midea", "cr_op",
+  ],
+  personal: [
+    "개인", "가족", "여행", "사진", "이력서", "가계부", "일기", "청구서", "보험", "의료",
+    "진료", "영수증", "통장", "급여", "명세", "주민", "신분증", "세금", "연말정산",
+    "청첩장", "부고", "생일", "메모",
+  ],
+};
+function classifyName(name) {
+  const n = name.toLowerCase();
+  const isC = CLASSIFY.company.some((kw) => n.includes(kw));
+  const isP = CLASSIFY.personal.some((kw) => n.includes(kw));
+  if (isC && !isP) return "company";
+  if (isP && !isC) return "personal";
+  return "none";
+}
 function targetKey(name) {
-  return activeCat === "all" ? name : CAT[activeCat].prefix + name;
+  if (activeCat !== "all") return CAT[activeCat].prefix + name;
+  const c = classifyName(name);
+  return c === "none" ? name : CAT[c].prefix + name;
 }
 
 async function loadFiles() {
@@ -537,7 +560,7 @@ function updateDropzoneHint() {
   const h = $("dzHint");
   if (activeCat === "company") h.textContent = "‘회사’에 업로드됩니다 · 여러 파일 가능";
   else if (activeCat === "personal") h.textContent = "‘개인’에 업로드됩니다 · 여러 파일 가능";
-  else h.textContent = "‘미분류’로 업로드됩니다 · 회사/개인 탭에서 올리면 자동 분류";
+  else h.textContent = "파일명으로 회사/개인 자동 분류 · 애매하면 미분류(직접 선택)";
 }
 
 async function removeFile(key) {
