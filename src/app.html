@@ -105,6 +105,11 @@
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { color: var(--text); }
   th .arrow { margin-left: 4px; color: var(--accent); font-size: 10px; }
+
+  .selbar { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+  .selbar .selcount { font-size: 13px; color: var(--muted); font-weight: 600; }
+  th.chk, td.chk { width: 1%; white-space: nowrap; padding-right: 0; }
+  input[type="checkbox"] { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--accent); vertical-align: middle; }
   table { width: 100%; border-collapse: collapse; }
   th, td { text-align: left; padding: 12px 16px; font-size: 14px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 600; font-size: 12.5px; text-transform: none; }
@@ -169,6 +174,11 @@
           <span id="count" class="count"></span>
         </div>
         <input id="search" type="search" class="search" placeholder="파일 이름 검색…" autocomplete="off" />
+      </div>
+      <div id="selbar" class="selbar">
+        <span id="selcount" class="selcount">0개 선택됨</span>
+        <button id="selDownload" class="btn btn-ghost btn-sm" type="button" disabled>선택 다운로드</button>
+        <button id="selDelete" class="btn btn-danger btn-sm" type="button" disabled>선택 삭제</button>
       </div>
       <div id="listBody">
         <div class="loading"><span class="spin"></span>불러오는 중…</div>
@@ -246,6 +256,8 @@ $("logoutBtn").addEventListener("click", async () => {
 /* ---------- 목록 ---------- */
 let allFiles = [];
 let activeCat = "all";
+let currentFiles = [];
+const selected = new Set();
 const sortState = { key: "uploaded", dir: "desc" };
 const CAT = {
   company: { prefix: "company/", label: "회사" },
@@ -277,6 +289,8 @@ async function loadFiles() {
       return;
     }
     allFiles = d.files;
+    const keys = new Set(allFiles.map((f) => f.key));
+    for (const k of [...selected]) if (!keys.has(k)) selected.delete(k);
     render();
   } catch {
     body.innerHTML = '<div class="empty">목록을 불러오지 못했습니다.</div>';
@@ -291,6 +305,8 @@ function render() {
   files = sortFiles(files);
 
   $("count").textContent = !inCat.length ? "" : q ? files.length + " / " + inCat.length + "개" : inCat.length + "개";
+  currentFiles = files;
+  updateSelBar();
 
   const body = $("listBody");
   if (!allFiles.length) {
@@ -349,6 +365,24 @@ function buildHead() {
   ];
   const thead = document.createElement("thead");
   const tr = document.createElement("tr");
+
+  const thChk = document.createElement("th");
+  thChk.className = "chk";
+  const all = document.createElement("input");
+  all.type = "checkbox";
+  all.id = "selectAll";
+  const vis = currentFiles.length;
+  const selVis = currentFiles.filter((f) => selected.has(f.key)).length;
+  all.checked = vis > 0 && selVis === vis;
+  all.indeterminate = selVis > 0 && selVis < vis;
+  all.addEventListener("change", () => {
+    if (all.checked) currentFiles.forEach((f) => selected.add(f.key));
+    else currentFiles.forEach((f) => selected.delete(f.key));
+    render();
+  });
+  thChk.appendChild(all);
+  tr.appendChild(thChk);
+
   for (const c of cols) {
     const th = document.createElement("th");
     th.className = (c.cls ? c.cls + " " : "") + "sortable";
@@ -383,6 +417,26 @@ function toggleSort(key) {
 
 function buildRow(f) {
   const tr = document.createElement("tr");
+
+  const tdChk = document.createElement("td");
+  tdChk.className = "chk";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = selected.has(f.key);
+  cb.addEventListener("change", () => {
+    if (cb.checked) selected.add(f.key);
+    else selected.delete(f.key);
+    const all = $("selectAll");
+    if (all) {
+      const vis = currentFiles.length;
+      const selVis = currentFiles.filter((x) => selected.has(x.key)).length;
+      all.checked = vis > 0 && selVis === vis;
+      all.indeterminate = selVis > 0 && selVis < vis;
+    }
+    updateSelBar();
+  });
+  tdChk.appendChild(cb);
+  tr.appendChild(tdChk);
 
   const tdName = document.createElement("td");
   tdName.className = "fname";
@@ -435,10 +489,45 @@ function buildRow(f) {
 
 $("search").addEventListener("input", render);
 
+function updateSelBar() {
+  const n = selected.size;
+  $("selcount").textContent = n + "개 선택됨";
+  $("selDownload").disabled = n === 0;
+  $("selDelete").disabled = n === 0;
+}
+
+$("selDownload").addEventListener("click", async () => {
+  const keys = [...selected];
+  for (const key of keys) {
+    const a = document.createElement("a");
+    a.href = API + "/file/" + encodeURIComponent(key);
+    a.download = displayName(key);
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    await new Promise((r) => setTimeout(r, 400));
+  }
+});
+
+$("selDelete").addEventListener("click", async () => {
+  const keys = [...selected];
+  if (!keys.length) return;
+  if (!confirm("선택한 " + keys.length + "개 파일을 삭제할까요?")) return;
+  const btn = $("selDelete");
+  btn.disabled = true;
+  for (const key of keys) {
+    const r = await api("/file/" + encodeURIComponent(key), { method: "DELETE" });
+    if (r.status === 401) return showLogin();
+    selected.delete(key);
+  }
+  loadFiles();
+});
+
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
     activeCat = btn.dataset.cat;
     document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("active", b === btn));
+    selected.clear();
     updateDropzoneHint();
     render();
   });
