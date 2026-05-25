@@ -160,8 +160,16 @@ const CLASSIFY = {
   ],
 };
 
+// 주식 투자/재테크 관련 강한 신호 — 포함되면 회사 키워드보다 우선해 '개인'으로 분류
+const PERSONAL_OVERRIDE = [
+  "주식", "종목", "주가", "매수", "매도", "배당", "코스피", "코스닥", "나스닥",
+  "상한가", "하한가", "손절", "익절", "포트폴리오", "증권사", "시세", "공매도",
+  "테마주", "우선주", "장기투자", "단기투자", "주식투자", "종목선정",
+];
+
 function classifyText(text) {
   const n = (text || "").toLowerCase();
+  if (PERSONAL_OVERRIDE.some((kw) => n.includes(kw))) return "personal";
   const isC = CLASSIFY.company.some((kw) => n.includes(kw));
   const isP = CLASSIFY.personal.some((kw) => n.includes(kw));
   if (isC && !isP) return "company";
