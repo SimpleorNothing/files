@@ -120,7 +120,8 @@
   td.date, th.date { white-space: nowrap; color: var(--muted); }
   td.actions { text-align: right; white-space: nowrap; }
   td.actions a, td.actions button { margin-left: 6px; vertical-align: middle; }
-  .fname { word-break: break-all; }
+  td.fname { min-width: 180px; }
+  .fname { overflow-wrap: anywhere; word-break: normal; }
   a.fname-link { color: var(--text); text-decoration: none; font-weight: 600; cursor: pointer; }
   a.fname-link:hover { color: var(--accent); text-decoration: underline; }
   a.dl { color: var(--accent); text-decoration: none; font-size: 13px; font-weight: 600; }
@@ -130,7 +131,19 @@
   @keyframes sp { to { transform: rotate(360deg); } }
 
   @media (max-width: 560px) {
-    th.date, td.date { display: none; }
+    /* 좁은 화면: 표를 행마다 카드형으로 쌓아 파일명이 한 줄 전체 폭을 쓰도록 한다 */
+    .list table, .list tbody, .list tr, .list td { display: block; width: auto; }
+    .list thead { display: none; }
+    .list tbody tr { position: relative; padding: 14px 14px 14px 42px; border-bottom: 1px solid var(--border); }
+    .list tbody tr:last-child { border-bottom: 0; }
+    .list td { border: 0; padding: 2px 0; }
+    td.fname { min-width: 0; }
+    td.fname .fname-link { font-size: 15px; }
+    td.chk { position: absolute; left: 14px; top: 16px; padding: 0; width: auto; }
+    td.size, td.cat { display: inline-block; color: var(--muted); margin: 4px 14px 0 0; }
+    td.date { display: none; }
+    td.actions { text-align: left; margin-top: 10px; }
+    td.actions a, td.actions button { margin: 0 8px 0 0; }
   }
 </style>
 </head>
