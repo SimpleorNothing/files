@@ -91,20 +91,6 @@ async function handleApi(request, env, sub) {
     return json({ ok: true, files: out });
   }
 
-  if (sub === "move" && method === "POST") {
-    if (!env.FILES_BUCKET) return json({ ok: false, error: "R2 버킷이 연결되지 않았습니다." }, 500);
-    const body = await request.json().catch(() => ({}));
-    const from = validateKey(body && body.from);
-    const to = validateKey(body && body.to);
-    if (!from || !to) return json({ ok: false, error: "잘못된 경로입니다." }, 400);
-    if (from === to) return json({ ok: true });
-    const obj = await env.FILES_BUCKET.get(from);
-    if (!obj) return json({ ok: false, error: "원본 파일을 찾을 수 없습니다." }, 404);
-    await env.FILES_BUCKET.put(to, obj.body, { httpMetadata: obj.httpMetadata });
-    await env.FILES_BUCKET.delete(from);
-    return json({ ok: true });
-  }
-
   if (sub.startsWith("file/")) {
     if (!env.FILES_BUCKET) return json({ ok: false, error: "R2 버킷이 연결되지 않았습니다." }, 500);
     const key = safeKey(sub.slice("file/".length));
@@ -112,10 +98,22 @@ async function handleApi(request, env, sub) {
 
     if (method === "PUT") {
       const contentType = request.headers.get("Content-Type") || "application/octet-stream";
-      await env.FILES_BUCKET.put(key, request.body, {
-        httpMetadata: { contentType },
-      });
-      return json({ ok: true });
+      const bytes = new Uint8Array(await request.arrayBuffer());
+
+      // 명시적 분류(회사/개인 탭)는 그대로, 그 외에는 제목+내용으로 자동 분류
+      let finalKey = key;
+      if (!key.startsWith("company/") && !key.startsWith("personal/")) {
+        const filename = key.split("/").pop();
+        let text = filename;
+        try {
+          text += " " + (await extractText(filename, bytes));
+        } catch {}
+        const cat = classifyText(text);
+        if (cat !== "none") finalKey = cat + "/" + key;
+      }
+
+      await env.FILES_BUCKET.put(finalKey, bytes, { httpMetadata: { contentType } });
+      return json({ ok: true, key: finalKey });
     }
 
     if (method === "GET") {
@@ -142,6 +140,108 @@ async function handleApi(request, env, sub) {
   }
 
   return json({ ok: false, error: "not found" }, 404);
+}
+
+/* ----------------- 자동 분류 (제목 + 내용) ----------------- */
+
+const CLASSIFY = {
+  company: [
+    "경쟁사", "분석", "동향", "공장", "시장", "공급망", "부품", "검증", "활용", "공조",
+    "가전", "보고서", "실적", "매출", "전략", "회의록", "회의", "업무", "프로젝트", "계약",
+    "거래처", "사업", "제품", "영업", "기획", "보고", "생산", "품질", "lg", "삼성", "midea",
+    "cr_op", "kpi", "회사",
+  ],
+  personal: [
+    "개인", "가족", "여행", "사진", "이력서", "가계부", "일기", "청구서", "보험", "의료",
+    "진료", "영수증", "통장", "급여", "명세서", "주민등록", "신분증", "연말정산",
+    "청첩장", "부고", "생일", "메모", "건강검진", "처방", "예약",
+  ],
+};
+
+function classifyText(text) {
+  const n = (text || "").toLowerCase();
+  const isC = CLASSIFY.company.some((kw) => n.includes(kw));
+  const isP = CLASSIFY.personal.some((kw) => n.includes(kw));
+  if (isC && !isP) return "company";
+  if (isP && !isC) return "personal";
+  return "none"; // 둘 다이거나 둘 다 아니면 미분류
+}
+
+const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|xml|html?|log|rtf|yaml|yml|ini|js|ts|css)$/i;
+const OOXML_EXT = /\.(docx|xlsx|pptx)$/i;
+
+async function extractText(filename, bytes) {
+  if (TEXT_EXT.test(filename)) {
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes).slice(0, 200000);
+  }
+  if (OOXML_EXT.test(filename)) {
+    return await extractOoxmlText(bytes);
+  }
+  return "";
+}
+
+function stripTags(s) {
+  return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+}
+
+async function extractOoxmlText(bytes) {
+  const entries = readZipEntries(bytes);
+  const wanted = Object.keys(entries).filter(
+    (n) =>
+      n === "word/document.xml" ||
+      n.startsWith("ppt/slides/slide") ||
+      n === "xl/sharedStrings.xml" ||
+      n.startsWith("xl/worksheets/sheet")
+  );
+  let out = "";
+  for (const name of wanted) {
+    try {
+      const data = await inflateEntry(bytes, entries[name]);
+      out += " " + stripTags(new TextDecoder("utf-8", { fatal: false }).decode(data));
+    } catch {}
+    if (out.length > 200000) break;
+  }
+  return out;
+}
+
+function readZipEntries(buf) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  let eocd = -1;
+  const minStart = Math.max(0, buf.length - 22 - 65536);
+  for (let i = buf.length - 22; i >= minStart; i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("EOCD not found");
+  const cdCount = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  const entries = {};
+  for (let i = 0; i < cdCount; i++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const compSize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const localOffset = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(buf.subarray(p + 46, p + 46 + nameLen));
+    entries[name] = { method, compSize, localOffset };
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+async function inflateEntry(buf, e) {
+  const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  const nameLen = dv.getUint16(e.localOffset + 26, true);
+  const extraLen = dv.getUint16(e.localOffset + 28, true);
+  const start = e.localOffset + 30 + nameLen + extraLen;
+  const comp = buf.subarray(start, start + e.compSize);
+  if (e.method === 0) return comp; // 저장(무압축)
+  if (e.method === 8) {
+    const stream = new Response(comp).body.pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  throw new Error("unsupported zip method " + e.method);
 }
 
 /* ----------------- 보안 / 세션 ----------------- */
