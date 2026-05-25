@@ -370,10 +370,12 @@ function sortFiles(files) {
   const { key, dir } = sortState;
   const mul = dir === "asc" ? 1 : -1;
   const byName = (a, b) => displayName(a.key).localeCompare(displayName(b.key), "ko", { numeric: true, sensitivity: "base" });
+  const catRank = { company: 0, personal: 1, none: 2 };
   return files.sort((a, b) => {
     let r;
     if (key === "size") r = a.size - b.size;
     else if (key === "uploaded") r = new Date(a.uploaded) - new Date(b.uploaded);
+    else if (key === "cat") r = catRank[catOf(a.key)] - catRank[catOf(b.key)];
     else r = byName(a, b);
     if (r === 0) r = byName(a, b);
     return r * mul;
@@ -420,8 +422,15 @@ function buildHead() {
     tr.appendChild(th);
   }
   const thCat = document.createElement("th");
-  thCat.className = "cat-h";
+  thCat.className = "cat-h sortable";
   thCat.textContent = "분류";
+  if (sortState.key === "cat") {
+    const arrow = document.createElement("span");
+    arrow.className = "arrow";
+    arrow.textContent = sortState.dir === "asc" ? "▲" : "▼";
+    thCat.appendChild(arrow);
+  }
+  thCat.addEventListener("click", () => toggleSort("cat"));
   tr.appendChild(thCat);
   tr.appendChild(document.createElement("th"));
   thead.appendChild(tr);
@@ -433,7 +442,7 @@ function toggleSort(key) {
     sortState.dir = sortState.dir === "asc" ? "desc" : "asc";
   } else {
     sortState.key = key;
-    sortState.dir = key === "key" ? "asc" : "desc"; // 이름은 오름차순, 크기/날짜는 내림차순 기본
+    sortState.dir = key === "size" || key === "uploaded" ? "desc" : "asc"; // 크기/날짜는 내림차순, 이름/분류는 오름차순 기본
   }
   render();
 }
